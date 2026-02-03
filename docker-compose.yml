@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: ara_postgres
+    environment:
+      POSTGRES_USER: ara_user
+      POSTGRES_PASSWORD: ara_password
+      POSTGRES_DB: ara_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ara_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ara_user -d ara_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ARA API Server
+  ara-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ara_api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://ara_user:ara_password@postgres:5432/ara_db
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - LLM_PROVIDER=gemini
+      - LLM_MODEL=gemini-3-pro-preview
+      - MOCK_LLM=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend (static files served by Nginx)
+  frontend:
+    image: nginx:alpine
+    container_name: ara_frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - ara-api
+
+volumes:
+  ara_postgres_data:

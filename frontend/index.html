@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARA - Autonomous Refactoring Agent</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">⚙️</span>
+                    <span class="logo-text">ARA</span>
+                </div>
+                <nav class="nav">
+                    <a href="#" class="nav-link active">Dashboard</a>
+                    <a href="#" class="nav-link">Workflows</a>
+                    <a href="#" class="nav-link">Settings</a>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>Quick Actions</h3>
+                    <button class="btn btn-primary" onclick="showNewWorkflowModal()">
+                        <span>+</span> New Refactoring
+                    </button>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Recent Workflows</h3>
+                    <div id="workflow-list" class="workflow-list">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Stats</h3>
+                    <div class="stats">
+                        <div class="stat">
+                            <span class="stat-value" id="stat-total">0</span>
+                            <span class="stat-label">Total</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value" id="stat-pending">0</span>
+                            <span class="stat-label">Pending</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value" id="stat-completed">0</span>
+                            <span class="stat-label">Completed</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Content Area -->
+            <div class="content">
+                <div id="welcome-screen" class="welcome-screen">
+                    <div class="welcome-content">
+                        <h1>Welcome to ARA</h1>
+                        <p>Autonomous Refactoring Agent with AI-powered code transformations</p>
+                        <button class="btn btn-large btn-primary" onclick="showNewWorkflowModal()">
+                            Start Your First Refactoring
+                        </button>
+                    </div>
+                </div>
+
+                <div id="workflow-detail" class="workflow-detail hidden">
+                    <!-- Workflow Header -->
+                    <div class="detail-header">
+                        <h2 id="detail-goal">Workflow Details</h2>
+                        <span id="detail-status" class="status-badge">PENDING</span>
+                    </div>
+
+                    <!-- Progress -->
+                    <div class="progress-section">
+                        <div class="progress-bar">
+                            <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-info">
+                            <span id="progress-text">Iteration 0 of 3</span>
+                            <span id="progress-file">No file selected</span>
+                        </div>
+                    </div>
+
+                    <!-- Diff Viewer -->
+                    <div class="diff-section">
+                        <h3>Proposed Changes</h3>
+                        <div id="diff-viewer" class="diff-viewer">
+                            <pre class="diff-content">No changes to display</pre>
+                        </div>
+                    </div>
+
+                    <!-- Refactoring Summary -->
+                    <div class="summary-section">
+                        <h3>Agent Explanation</h3>
+                        <div id="summary-content" class="summary-content">
+                            Processing...
+                        </div>
+                    </div>
+
+                    <!-- Validation Results -->
+                    <div class="validation-section">
+                        <h3>Validation Results</h3>
+                        <div id="validation-results" class="validation-results">
+                            <div class="validation-item success">
+                                <span class="validation-icon">✓</span>
+                                <span class="validation-name">Syntax Check</span>
+                                <span class="validation-status">Passed</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="action-section">
+                        <div class="action-buttons">
+                            <button class="btn btn-success" onclick="approveChanges()">
+                                ✓ Approve
+                            </button>
+                            <button class="btn btn-warning" onclick="showFeedbackModal()">
+                                ✎ Modify
+                            </button>
+                            <button class="btn btn-danger" onclick="rejectChanges()">
+                                ✗ Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- New Workflow Modal -->
+        <div id="new-workflow-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>New Refactoring Workflow</h2>
+                    <button class="modal-close" onclick="hideNewWorkflowModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="refactoring-goal">Refactoring Goal</label>
+                        <input type="text" id="refactoring-goal" placeholder="e.g., Add type hints to all functions">
+                    </div>
+                    <div class="form-group">
+                        <label for="file-content">Code to Refactor</label>
+                        <textarea id="file-content" rows="10" placeholder="Paste your Python code here..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="file-path">File Path</label>
+                        <input type="text" id="file-path" placeholder="e.g., src/main.py" value="main.py">
+                    </div>
+                    <div class="form-group">
+                        <label for="max-iterations">Max Iterations</label>
+                        <input type="number" id="max-iterations" value="3" min="1" max="10">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="hideNewWorkflowModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="startWorkflow()">Start Refactoring</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feedback Modal -->
+        <div id="feedback-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Provide Feedback</h2>
+                    <button class="modal-close" onclick="hideFeedbackModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="feedback-text">Your Feedback</label>
+                        <textarea id="feedback-text" rows="5"
+                            placeholder="Describe what changes you'd like..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="hideFeedbackModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="submitFeedback()">Submit Feedback</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

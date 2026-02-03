@@ -1,0 +1,139 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0 -- C:\Users\faile\AppData\Local\Programs\Python\Python314\python.exe
+cachedir: .pytest_cache
+metadata: {'Python': '3.14.0', 'Platform': 'Windows-11-10.0.26100-SP0', 'Packages': {'pytest': '9.0.2', 'pluggy': '1.6.0'}, 'Plugins': {'anyio': '4.12.1', 'langsmith': '0.6.2', 'asyncio': '1.3.0', 'html': '4.2.0', 'metadata': '3.1.1', 'timeout': '2.4.0'}}
+rootdir: D:\test
+configfile: pytest.ini
+plugins: anyio-4.12.1, langsmith-0.6.2, asyncio-1.3.0, html-4.2.0, metadata-3.1.1, timeout-2.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 78 items
+
+tests/test_api/test_api.py::TestHealthEndpoint::test_root_returns_healthy PASSED [  1%]
+tests/test_api/test_api.py::TestStartRefactorEndpoint::test_start_refactor_success PASSED [  2%]
+tests/test_api/test_api.py::TestStartRefactorEndpoint::test_start_refactor_missing_goal PASSED [  3%]
+tests/test_api/test_api.py::TestGetStatusEndpoint::test_get_status_found PASSED [  5%]
+tests/test_api/test_api.py::TestGetStatusEndpoint::test_get_status_not_found PASSED [  6%]
+tests/test_api/test_api.py::TestResumeWorkflowEndpoint::test_resume_approve PASSED [  7%]
+tests/test_api/test_api.py::TestResumeWorkflowEndpoint::test_resume_invalid_action PASSED [  8%]
+tests/test_api/test_api.py::TestListWorkflowsEndpoint::test_list_all_workflows PASSED [ 10%]
+tests/test_api/test_api.py::TestListWorkflowsEndpoint::test_list_workflows_filter_by_status PASSED [ 11%]
+tests/test_api/test_api.py::TestWorkflowManager::test_workflow_manager_init PASSED [ 12%]
+tests/test_api/test_api.py::TestWorkflowManager::test_get_nonexistent_workflow PASSED [ 14%]
+tests/test_api/test_api.py::TestWorkflowManager::test_list_empty_workflows PASSED [ 15%]
+tests/test_context/test_context.py::TestDependencyAnalyzer::test_analyze_imports PASSED [ 16%]
+tests/test_context/test_context.py::TestDependencyAnalyzer::test_analyze_functions PASSED [ 17%]
+tests/test_context/test_context.py::TestDependencyAnalyzer::test_analyze_classes PASSED [ 19%]
+tests/test_context/test_context.py::TestDependencyAnalyzer::test_analyze_syntax_error PASSED [ 20%]
+tests/test_context/test_context.py::TestDependencyGraph::test_build_graph PASSED [ 21%]
+tests/test_context/test_context.py::TestDependencyGraph::test_find_affected_files PASSED [ 23%]
+tests/test_context/test_context.py::TestDependencyGraph::test_topological_sort PASSED [ 24%]
+tests/test_context/test_context.py::TestContextWindow::test_token_estimation PASSED [ 25%]
+tests/test_context/test_context.py::TestContextWindow::test_add_chunk_within_budget PASSED [ 26%]
+tests/test_context/test_context.py::TestContextWindow::test_add_chunk_exceeds_budget PASSED [ 28%]
+tests/test_context/test_context.py::TestContextWindow::test_to_prompt PASSED [ 29%]
+tests/test_context/test_context.py::TestContextManager::test_get_context_for_file PASSED [ 30%]
+tests/test_context/test_context.py::TestContextManager::test_create_refactoring_context PASSED [ 32%]
+tests/test_integration/test_graph.py::TestGraphIntegration::test_graph_creation PASSED [ 33%]
+tests/test_integration/test_graph.py::TestGraphIntegration::test_single_file_success_flow PASSED [ 34%]
+tests/test_integration/test_graph.py::TestGraphIntegration::test_self_correction_loop PASSED [ 35%]
+tests/test_integration/test_graph.py::TestGraphWithRealValidation::test_validation_catches_syntax_error PASSED [ 37%]
+tests/test_nodes/test_nodes.py::TestAnalyzerNode::test_analyzer_no_files PASSED [ 38%]
+tests/test_nodes/test_nodes.py::TestAnalyzerNode::test_analyzer_with_files PASSED [ 39%]
+tests/test_nodes/test_nodes.py::TestGeneratorNode::test_generator_no_file PASSED [ 41%]
+tests/test_nodes/test_nodes.py::TestGeneratorNode::test_generator_with_file PASSED [ 42%]
+tests/test_nodes/test_nodes.py::TestGeneratorNode::test_clean_code_response PASSED [ 43%]
+tests/test_nodes/test_nodes.py::TestValidatorNode::test_validator_no_code PASSED [ 44%]
+tests/test_nodes/test_nodes.py::TestValidatorNode::test_validator_syntax_check PASSED [ 46%]
+tests/test_nodes/test_nodes.py::TestValidatorNode::test_validator_with_valid_code PASSED [ 47%]
+tests/test_nodes/test_nodes.py::TestReflectorNode::test_reflector_no_history PASSED [ 48%]
+tests/test_nodes/test_nodes.py::TestReflectorNode::test_reflector_with_failures PASSED [ 50%]
+tests/test_nodes/test_nodes.py::TestReflectorNode::test_build_error_context PASSED [ 51%]
+tests/test_nodes/test_nodes.py::TestRouter::test_route_success PASSED    [ 52%]
+tests/test_nodes/test_nodes.py::TestRouter::test_route_reflect PASSED    [ 53%]
+tests/test_nodes/test_nodes.py::TestRouter::test_route_escalate PASSED   [ 55%]
+tests/test_state/test_models.py::TestFileContext::test_create_minimal PASSED [ 56%]
+tests/test_state/test_models.py::TestFileContext::test_create_full PASSED [ 57%]
+tests/test_state/test_models.py::TestFileContext::test_status_enum_values PASSED [ 58%]
+tests/test_state/test_models.py::TestValidationResult::test_create_passed PASSED [ 60%]
+tests/test_state/test_models.py::TestValidationResult::test_create_failed PASSED [ 61%]
+tests/test_state/test_models.py::TestValidationResult::test_failed_tests_list PASSED [ 62%]
+tests/test_state/test_models.py::TestRefactoringTarget::test_create_function_target PASSED [ 64%]
+tests/test_state/test_models.py::TestReflectionNote::test_create_reflection PASSED [ 65%]
+tests/test_state/test_models.py::TestApprovalStatus::test_status_values PASSED [ 66%]
+tests/test_state/test_schema.py::TestAgentState::test_create_initial_state PASSED [ 67%]
+tests/test_state/test_schema.py::TestAgentState::test_create_initial_state_with_workflow_id PASSED [ 69%]
+tests/test_state/test_schema.py::TestAgentState::test_state_fields_modifiable PASSED [ 70%]
+tests/test_state/test_schema.py::TestAgentState::test_validation_history_append PASSED [ 71%]
+tests/test_tools/test_sandbox.py::TestTempDirSandbox::test_sandbox_context_manager PASSED [ 73%]
+tests/test_tools/test_sandbox.py::TestTempDirSandbox::test_write_file PASSED [ 74%]
+tests/test_tools/test_sandbox.py::TestTempDirSandbox::test_run_python_code_success PASSED [ 75%]
+tests/test_tools/test_sandbox.py::TestTempDirSandbox::test_run_python_code_failure PASSED [ 76%]
+tests/test_tools/test_sandbox.py::TestTempDirSandbox::test_run_python_code_syntax_error PASSED [ 78%]
+tests/test_tools/test_sandbox.py::TestTempDirSandbox::test_run_command_timeout PASSED [ 79%]
+tests/test_tools/test_sandbox.py::TestTempDirSandbox::test_allowed_commands PASSED [ 80%]
+tests/test_tools/test_sandbox.py::TestExecuteInSandbox::test_simple_execution PASSED [ 82%]
+tests/test_tools/test_sandbox.py::TestExecuteInSandbox::test_with_imports PASSED [ 83%]
+tests/test_tools/test_sandbox.py::TestValidateCodeInSandbox::test_validate_clean_code PASSED [ 84%]
+tests/test_tools/test_sandbox.py::TestValidateCodeInSandbox::test_validate_code_with_issues PASSED [ 85%]
+tests/test_transforms/test_transforms.py::TestRenameFunctionTransformer::test_rename_function_definition PASSED [ 87%]
+tests/test_transforms/test_transforms.py::TestRenameFunctionTransformer::test_rename_function_call PASSED [ 88%]
+tests/test_transforms/test_transforms.py::TestRenameFunctionTransformer::test_no_rename_method_call PASSED [ 89%]
+tests/test_transforms/test_transforms.py::TestAddTypeHintTransformer::test_add_return_type PASSED [ 91%]
+tests/test_transforms/test_transforms.py::TestAddTypeHintTransformer::test_infer_types_from_defaults PASSED [ 92%]
+tests/test_transforms/test_transforms.py::TestAddTypeHintTransformer::test_explicit_type_hints PASSED [ 93%]
+tests/test_transforms/test_transforms.py::TestAddTypeHintTransformer::test_skip_self_parameter PASSED [ 94%]
+tests/test_transforms/test_transforms.py::TestDeprecatedAPIReplacer::test_replace_function_call PASSED [ 96%]
+tests/test_transforms/test_transforms.py::TestTransformerRegistry::test_list_available_transformers PASSED [ 97%]
+tests/test_transforms/test_transforms.py::TestTransformerRegistry::test_get_transformer PASSED [ 98%]
+tests/test_transforms/test_transforms.py::TestTransformerRegistry::test_apply_transform PASSED [100%]
+
+============================== warnings summary ===============================
+C:\Users\faile\AppData\Local\Programs\Python\Python314\Lib\site-packages\langchain_core\_api\deprecation.py:26
+  C:\Users\faile\AppData\Local\Programs\Python\Python314\Lib\site-packages\langchain_core\_api\deprecation.py:26: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+src\ara\api\main.py:43
+  d:\test\src\ara\api\main.py:43: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    refactoring_goal: str = Field(
+
+src\ara\api\main.py:299
+  d:\test\src\ara\api\main.py:299: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+C:\Users\faile\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\applications.py:4576
+C:\Users\faile\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\applications.py:4576
+  C:\Users\faile\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\applications.py:4576: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+src\ara\api\main.py:305
+  d:\test\src\ara\api\main.py:305: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/test_integration/test_graph.py::TestGraphIntegration::test_single_file_success_flow
+  C:\Users\faile\AppData\Local\Programs\Python\Python314\Lib\site-packages\google\genai\types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+tests/test_integration/test_graph.py::TestGraphIntegration::test_single_file_success_flow
+tests/test_integration/test_graph.py::TestGraphIntegration::test_single_file_success_flow
+tests/test_integration/test_graph.py::TestGraphIntegration::test_single_file_success_flow
+tests/test_integration/test_graph.py::TestGraphWithRealValidation::test_validation_catches_syntax_error
+  C:\Users\faile\AppData\Local\Programs\Python\Python314\Lib\site-packages\langchain_google_genai\chat_models.py:2748: DeprecationWarning: The 'convert_system_message_to_human' parameter is deprecated and will be removed in a future version. Use system instructions instead.
+    system_instruction, history = _parse_chat_history(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================= 78 passed, 11 warnings in 162.52s (0:02:42) =================
