@@ -79,6 +79,13 @@ class AgentState(TypedDict, total=False):
     workflow_id: Optional[str]
     error_state: Optional[str]
 
+    # Multi-File Processing
+    file_queue: List[str]  # Ordered list of files to process
+    file_queue_index: int  # Current position in file queue
+
+    # Cycle Detection (Phase 7)
+    code_hashes: List[str]  # Hash of generated code to detect oscillation
+
 
 def create_initial_state(
     refactoring_goal: str,
@@ -115,4 +122,7 @@ def create_initial_state(
         approval_status=ApprovalStatus.PENDING.value,
         workflow_id=workflow_id or str(uuid.uuid4()),
         error_state=None,
+        file_queue=[],
+        file_queue_index=0,
+        code_hashes=[],
     )

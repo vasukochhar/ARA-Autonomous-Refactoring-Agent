@@ -256,6 +256,105 @@ class WorkflowManager:
             workflows = [w for w in workflows if w.status == status]
         
         return sorted(workflows, key=lambda w: w.updated_at, reverse=True)
+    
+    async def list_checkpoints(self, workflow_id: str) -> list:
+        """
+        List all checkpoints for a workflow (for time-travel debugging).
+        
+        Args:
+            workflow_id: The workflow ID
+        
+        Returns:
+            List of checkpoint metadata dicts
+        """
+        try:
+            from ara.persistence.database import get_async_connection_context, CheckpointRepository
+            
+            async with get_async_connection_context() as conn:
+                repo = CheckpointRepository(conn)
+                checkpoints = await repo.list_checkpoints(workflow_id)
+                return checkpoints
+        except Exception as e:
+            logger.warning("list_checkpoints_failed", error=str(e))
+            return []
+    
+    async def rewind_to_checkpoint(
+        self, workflow_id: str, step_number: int
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Rewind a workflow to a specific checkpoint (time-travel debugging).
+        
+        This restores the workflow state to a previous step, allowing
+        engineers to inspect or modify the state before resuming.
+        
+        Args:
+            workflow_id: The workflow ID
+            step_number: Step number to rewind to
+        
+        Returns:
+            The restored state or None if not found
+        """
+        try:
+            from ara.persistence.database import get_async_connection_context, CheckpointRepository
+            
+            async with get_async_connection_context() as conn:
+                repo = CheckpointRepository(conn)
+                
+                # Get the state at that step
+                state = await repo.rewind_to_step(workflow_id, step_number)
+                
+                if state:
+                    # Delete checkpoints after this step
+                    await repo.delete_after_step(workflow_id, step_number)
+                    
+                    # Update workflow info
+                    if workflow_id in self._workflows:
+                        self._workflows[workflow_id].status = "REWOUND"
+                        self._workflows[workflow_id].updated_at = datetime.now()
+                    
+                    logger.info("workflow_rewound", workflow_id=workflow_id, step=step_number)
+                    return state
+                
+                return None
+        except Exception as e:
+            logger.error("rewind_to_checkpoint_failed", error=str(e))
+            return None
+    
+    async def save_checkpoint(
+        self, workflow_id: str, step_number: int, node_name: str, state: dict
+    ) -> bool:
+        """
+        Save a checkpoint of the current workflow state.
+        
+        Called automatically after each node execution for time-travel support.
+        
+        Args:
+            workflow_id: The workflow ID
+            step_number: Current step number
+            node_name: Name of the node that just executed
+            state: Current workflow state
+        
+        Returns:
+            True if saved successfully
+        """
+        try:
+            from ara.persistence.database import get_async_connection_context, CheckpointRepository
+            
+            checkpoint_id = f"{workflow_id}_step_{step_number}"
+            
+            async with get_async_connection_context() as conn:
+                repo = CheckpointRepository(conn)
+                await repo.save_checkpoint(
+                    workflow_id=workflow_id,
+                    checkpoint_id=checkpoint_id,
+                    step_number=step_number,
+                    node_name=node_name,
+                    state=state,
+                )
+            return True
+        except Exception as e:
+            logger.warning("save_checkpoint_failed", error=str(e))
+            return False
 
 
 # Global workflow manager instance

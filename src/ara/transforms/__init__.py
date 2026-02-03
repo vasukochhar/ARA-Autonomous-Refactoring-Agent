@@ -1,4 +1,4 @@
-"""Transforms module - LibCST code transformers."""
+"""Transforms module - LibCST code transformers for lossless refactoring."""
 
 from ara.transforms.base import (
     BaseTransformer,
@@ -6,25 +6,22 @@ from ara.transforms.base import (
     apply_transformer,
     parse_module_safe,
 )
-from ara.transforms.rename import (
-    RenameFunctionTransformer,
-    RenameMethodTransformer,
-)
 from ara.transforms.type_hints import (
-    AddTypeHintTransformer,
-    AddTypeHintFromDocstringTransformer,
+    AddTypeHintsTransformer,
+    add_type_hints,
 )
-from ara.transforms.deprecated_api import (
-    DeprecatedAPIReplacer,
-    APIReplacement,
-    SimplePatternReplacer,
+from ara.transforms.rename import (
+    RenameTransformer,
+    DeprecatedAPITransformer,
+    rename_symbols,
+    replace_deprecated_apis,
 )
-from ara.transforms.registry import (
-    get_transformer,
-    apply_transform,
-    apply_transforms_chain,
-    list_available_transformers,
-    register_transformer,
+from ara.transforms.cleanup import (
+    AddDocstringsTransformer,
+    RemoveUnusedImportsTransformer,
+    SafeDivisionTransformer,
+    add_docstrings,
+    remove_unused_imports,
 )
 
 __all__ = [
@@ -33,20 +30,46 @@ __all__ = [
     "TransformResult",
     "apply_transformer",
     "parse_module_safe",
-    # Rename
-    "RenameFunctionTransformer",
-    "RenameMethodTransformer",
     # Type Hints
-    "AddTypeHintTransformer",
-    "AddTypeHintFromDocstringTransformer",
-    # Deprecated API
-    "DeprecatedAPIReplacer",
-    "APIReplacement",
-    "SimplePatternReplacer",
-    # Registry
-    "get_transformer",
-    "apply_transform",
-    "apply_transforms_chain",
-    "list_available_transformers",
-    "register_transformer",
+    "AddTypeHintsTransformer",
+    "add_type_hints",
+    # Rename
+    "RenameTransformer",
+    "DeprecatedAPITransformer",
+    "rename_symbols",
+    "replace_deprecated_apis",
+    # Cleanup
+    "AddDocstringsTransformer",
+    "RemoveUnusedImportsTransformer",
+    "SafeDivisionTransformer",
+    "add_docstrings",
+    "remove_unused_imports",
 ]
+
+
+# Transform registry for dynamic selection
+TRANSFORM_REGISTRY = {
+    "add_type_hints": add_type_hints,
+    "rename_symbols": rename_symbols,
+    "replace_deprecated_apis": replace_deprecated_apis,
+    "add_docstrings": add_docstrings,
+    "remove_unused_imports": remove_unused_imports,
+}
+
+
+def get_transform(name: str):
+    """Get a transform function by name."""
+    return TRANSFORM_REGISTRY.get(name)
+
+
+def list_transforms():
+    """List available transform names."""
+    return list(TRANSFORM_REGISTRY.keys())
+
+
+def apply_transform_by_name(name: str, source_code: str, **kwargs) -> TransformResult:
+    """Apply a transform by name."""
+    transform_fn = get_transform(name)
+    if not transform_fn:
+        raise ValueError(f"Unknown transform: {name}")
+    return transform_fn(source_code, **kwargs)

@@ -1,11 +1,12 @@
 """
 Generator Node - The Coder.
 
-This node performs code transformations using the Gemini LLM.
-It generates modified code based on the refactoring goal and any reflection notes.
+This node performs code transformations using:
+1. LibCST transformers for precise, formatting-preserving changes
+2. Gemini LLM as fallback for complex transformations
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -14,6 +15,7 @@ from ara.state.schema import AgentState
 from ara.state.models import FileContext, FileStatus
 from ara.tools.file_ops import generate_diff
 from ara.llm.provider import get_llm
+from ara.transforms import add_type_hints, add_docstrings, TransformResult
 
 logger = structlog.get_logger()
 
@@ -51,9 +53,59 @@ Please fix the issues. Output format:
 ...
 ```"""
 
+def _try_libcst_transform(original_code: str, goal: str) -> Optional[Dict[str, Any]]:
+    """
+    Try to apply LibCST transforms based on the refactoring goal.
+    
+    Returns dict with generated_code and summary, or None if LLM needed.
+    """
+    goal_lower = goal.lower()
+    results = []
+    modified_code = original_code
+    
+    try:
+        # Pattern matching for known transform types
+        if "type hint" in goal_lower or "type annotation" in goal_lower:
+            result = add_type_hints(modified_code)
+            if result.has_changes:
+                modified_code = result.modified_code
+                results.append(result)
+                logger.info("libcst_transform_applied", transform="add_type_hints", changes=result.changes_made)
+        
+        if "docstring" in goal_lower:
+            result = add_docstrings(modified_code)
+            if result.has_changes:
+                modified_code = result.modified_code
+                results.append(result)
+                logger.info("libcst_transform_applied", transform="add_docstrings", changes=result.changes_made)
+        
+        if results:
+            # Build summary from transform results
+            all_changes = []
+            for r in results:
+                all_changes.extend(r.change_descriptions)
+            
+            summary = f"Applied LibCST transforms: {'; '.join(all_changes[:5])}"
+            if len(all_changes) > 5:
+                summary += f" and {len(all_changes) - 5} more changes"
+            
+            return {
+                "generated_code": modified_code,
+                "summary": summary,
+            }
+    except Exception as e:
+        logger.warning("libcst_transform_failed", error=str(e))
+    
+    return None
+
+
 def generator_node(state: AgentState) -> dict:
     """
-    Generate code transformations using the LLM.
+    Generate code transformations using LibCST or LLM.
+    
+    Strategy:
+    1. Try LibCST transforms for known patterns (fast, precise)
+    2. Fall back to LLM for complex/unknown transformations
     """
     current_file = state.get("current_file_path")
     refactoring_goal = state.get("refactoring_goal", "")
@@ -73,6 +125,42 @@ def generator_node(state: AgentState) -> dict:
     else:
         original_content = file_ctx.get("original_content", "")
 
+    # STRATEGY 1: Try LibCST transforms first (fast, precise)
+    if iteration_count == 0:  # Only on first attempt
+        libcst_result = _try_libcst_transform(original_content, refactoring_goal)
+        if libcst_result:
+            generated_code = libcst_result["generated_code"]
+            summary = libcst_result["summary"]
+            
+            diff = generate_diff(original_content, generated_code, current_file)
+            
+            updated_files = dict(files)
+            if isinstance(file_ctx, FileContext):
+                updated_file = FileContext(
+                    filepath=file_ctx.filepath,
+                    original_content=file_ctx.original_content,
+                    modified_content=generated_code,
+                    diff=diff,
+                    status=FileStatus.IN_PROGRESS,
+                )
+            else:
+                updated_file = {
+                    **file_ctx,
+                    "modified_content": generated_code,
+                    "diff": diff,
+                    "status": FileStatus.IN_PROGRESS.value,
+                }
+            updated_files[current_file] = updated_file
+            
+            logger.info("generator_complete_libcst", changes=len(diff.splitlines()))
+            
+            return {
+                "files": updated_files,
+                "generated_code_snippet": generated_code,
+                "refactoring_summary": summary,
+            }
+
+    # STRATEGY 2: Use LLM for complex transformations
     # Build the prompt
     messages = [SystemMessage(content=GENERATOR_SYSTEM_PROMPT)]
 
@@ -95,6 +183,7 @@ Original Code:
 ```python
 {original_content}
 ```
+
 
 Generate the [SUMMARY] and [CODE]."""))
 

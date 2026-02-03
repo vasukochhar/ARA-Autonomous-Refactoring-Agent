@@ -261,3 +261,259 @@ def find_affected_files(
     affected.discard(changed_file)
     
     return list(affected)
+
+
+@dataclass
+class SymbolDefinition:
+    """A symbol definition (function, class, variable)."""
+    name: str
+    filepath: str
+    line_number: int
+    symbol_type: str  # 'function', 'class', 'variable', 'import'
+    scope: Optional[str] = None  # Parent class/function if nested
+
+
+@dataclass
+class SymbolReference:
+    """A reference to a symbol."""
+    name: str
+    filepath: str
+    line_number: int
+    context: str  # 'call', 'import', 'attribute', 'annotation'
+
+
+class SymbolResolver:
+    """
+    Resolves symbols across multiple files.
+    
+    Tracks where symbols are defined and where they're used,
+    enabling accurate cross-file refactoring.
+    """
+    
+    def __init__(self):
+        self.definitions: Dict[str, List[SymbolDefinition]] = {}  # symbol -> definitions
+        self.references: Dict[str, List[SymbolReference]] = {}  # symbol -> references
+        self.file_symbols: Dict[str, Set[str]] = {}  # filepath -> symbols defined
+    
+    def add_definition(self, symbol: SymbolDefinition):
+        """Add a symbol definition."""
+        if symbol.name not in self.definitions:
+            self.definitions[symbol.name] = []
+        self.definitions[symbol.name].append(symbol)
+        
+        if symbol.filepath not in self.file_symbols:
+            self.file_symbols[symbol.filepath] = set()
+        self.file_symbols[symbol.filepath].add(symbol.name)
+    
+    def add_reference(self, ref: SymbolReference):
+        """Add a symbol reference."""
+        if ref.name not in self.references:
+            self.references[ref.name] = []
+        self.references[ref.name].append(ref)
+    
+    def find_definition(self, symbol_name: str, from_file: Optional[str] = None) -> Optional[SymbolDefinition]:
+        """
+        Find the definition of a symbol.
+        
+        Args:
+            symbol_name: Name of the symbol
+            from_file: File where the reference is (for scoping)
+        
+        Returns:
+            The most likely definition or None
+        """
+        defs = self.definitions.get(symbol_name, [])
+        if not defs:
+            return None
+        
+        # Prefer definitions in the same file
+        if from_file:
+            same_file = [d for d in defs if d.filepath == from_file]
+            if same_file:
+                return same_file[0]
+        
+        return defs[0]
+    
+    def find_references(self, symbol_name: str) -> List[SymbolReference]:
+        """Find all references to a symbol."""
+        return self.references.get(symbol_name, [])
+    
+    def get_files_using_symbol(self, symbol_name: str) -> Set[str]:
+        """Get all files that reference a symbol."""
+        refs = self.find_references(symbol_name)
+        return {r.filepath for r in refs}
+    
+    def rename_symbol_impact(self, old_name: str) -> Dict[str, List[int]]:
+        """
+        Determine the impact of renaming a symbol.
+        
+        Returns:
+            Dict mapping filepath to list of line numbers that need updating
+        """
+        impact: Dict[str, List[int]] = {}
+        
+        # Add definition locations
+        for defn in self.definitions.get(old_name, []):
+            if defn.filepath not in impact:
+                impact[defn.filepath] = []
+            impact[defn.filepath].append(defn.line_number)
+        
+        # Add reference locations
+        for ref in self.references.get(old_name, []):
+            if ref.filepath not in impact:
+                impact[ref.filepath] = []
+            impact[ref.filepath].append(ref.line_number)
+        
+        # Sort line numbers
+        for filepath in impact:
+            impact[filepath] = sorted(set(impact[filepath]))
+        
+        return impact
+
+
+class SymbolExtractor(ast.NodeVisitor):
+    """Extract symbol definitions and references from AST."""
+    
+    def __init__(self, filepath: str):
+        self.filepath = filepath
+        self.definitions: List[SymbolDefinition] = []
+        self.references: List[SymbolReference] = []
+        self.current_scope: Optional[str] = None
+    
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        self.definitions.append(SymbolDefinition(
+            name=node.name,
+            filepath=self.filepath,
+            line_number=node.lineno,
+            symbol_type='function',
+            scope=self.current_scope,
+        ))
+        old_scope = self.current_scope
+        self.current_scope = node.name
+        self.generic_visit(node)
+        self.current_scope = old_scope
+    
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
+        self.definitions.append(SymbolDefinition(
+            name=node.name,
+            filepath=self.filepath,
+            line_number=node.lineno,
+            symbol_type='function',
+            scope=self.current_scope,
+        ))
+        old_scope = self.current_scope
+        self.current_scope = node.name
+        self.generic_visit(node)
+        self.current_scope = old_scope
+    
+    def visit_ClassDef(self, node: ast.ClassDef):
+        self.definitions.append(SymbolDefinition(
+            name=node.name,
+            filepath=self.filepath,
+            line_number=node.lineno,
+            symbol_type='class',
+            scope=self.current_scope,
+        ))
+        old_scope = self.current_scope
+        self.current_scope = node.name
+        self.generic_visit(node)
+        self.current_scope = old_scope
+    
+    def visit_Name(self, node: ast.Name):
+        if isinstance(node.ctx, ast.Load):
+            self.references.append(SymbolReference(
+                name=node.id,
+                filepath=self.filepath,
+                line_number=node.lineno,
+                context='reference',
+            ))
+        self.generic_visit(node)
+    
+    def visit_Call(self, node: ast.Call):
+        if isinstance(node.func, ast.Name):
+            self.references.append(SymbolReference(
+                name=node.func.id,
+                filepath=self.filepath,
+                line_number=node.lineno,
+                context='call',
+            ))
+        self.generic_visit(node)
+    
+    def visit_ImportFrom(self, node: ast.ImportFrom):
+        for alias in node.names:
+            self.definitions.append(SymbolDefinition(
+                name=alias.asname or alias.name,
+                filepath=self.filepath,
+                line_number=node.lineno,
+                symbol_type='import',
+            ))
+        self.generic_visit(node)
+
+
+def build_symbol_table(files: Dict[str, str]) -> SymbolResolver:
+    """
+    Build a complete symbol table from multiple files.
+    
+    Args:
+        files: Dict mapping filepath to source code
+    
+    Returns:
+        SymbolResolver with all definitions and references
+    """
+    resolver = SymbolResolver()
+    
+    for filepath, source_code in files.items():
+        try:
+            tree = ast.parse(source_code)
+            extractor = SymbolExtractor(filepath)
+            extractor.visit(tree)
+            
+            for defn in extractor.definitions:
+                resolver.add_definition(defn)
+            for ref in extractor.references:
+                resolver.add_reference(ref)
+                
+        except SyntaxError as e:
+            logger.warning("symbol_extraction_syntax_error", filepath=filepath, error=str(e))
+        except Exception as e:
+            logger.error("symbol_extraction_error", filepath=filepath, error=str(e))
+    
+    logger.info(
+        "symbol_table_built",
+        definitions=sum(len(v) for v in resolver.definitions.values()),
+        references=sum(len(v) for v in resolver.references.values()),
+        files=len(files),
+    )
+    
+    return resolver
+
+
+def get_refactoring_order(
+    graph: DependencyGraph,
+    target_files: List[str],
+) -> List[str]:
+    """
+    Determine the order to process files for refactoring.
+    
+    Processes leaf nodes (no dependencies) first, then works up.
+    
+    Args:
+        graph: The dependency graph
+        target_files: Files to be refactored
+    
+    Returns:
+        Ordered list of files to process
+    """
+    # Get topological order
+    all_ordered = graph.topological_sort()
+    
+    # Filter to only target files, maintaining order
+    ordered = [f for f in all_ordered if f in target_files]
+    
+    # Add any target files not in graph
+    for f in target_files:
+        if f not in ordered:
+            ordered.append(f)
+    
+    return ordered
+

@@ -123,6 +123,21 @@ async def init_database_schema(conn) -> None:
     CREATE INDEX IF NOT EXISTS idx_workflows_status ON ara_workflows(status);
     CREATE INDEX IF NOT EXISTS idx_file_contexts_workflow ON ara_file_contexts(workflow_id);
     CREATE INDEX IF NOT EXISTS idx_validation_workflow ON ara_validation_results(workflow_id);
+    
+    -- State checkpoints for time-travel debugging
+    CREATE TABLE IF NOT EXISTS ara_checkpoints (
+        id SERIAL PRIMARY KEY,
+        workflow_id UUID REFERENCES ara_workflows(workflow_id) ON DELETE CASCADE,
+        checkpoint_id VARCHAR(100) NOT NULL,
+        step_number INTEGER NOT NULL,
+        node_name VARCHAR(100),
+        state_json JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(workflow_id, checkpoint_id)
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_checkpoints_workflow ON ara_checkpoints(workflow_id);
+    CREATE INDEX IF NOT EXISTS idx_checkpoints_step ON ara_checkpoints(workflow_id, step_number);
     """
 
     await conn.execute(schema_sql)
@@ -230,3 +245,174 @@ class WorkflowRepository:
                 limit,
             )
         return [dict(r) for r in results]
+
+
+class CheckpointRepository:
+    """
+    Repository for checkpoint CRUD operations.
+    
+    Enables time-travel debugging by saving and restoring
+    workflow state at any step.
+    """
+    
+    def __init__(self, conn):
+        self.conn = conn
+    
+    async def save_checkpoint(
+        self,
+        workflow_id: str,
+        checkpoint_id: str,
+        step_number: int,
+        node_name: str,
+        state: dict,
+    ) -> dict:
+        """
+        Save a checkpoint of the workflow state.
+        
+        Args:
+            workflow_id: The workflow UUID
+            checkpoint_id: Unique checkpoint identifier
+            step_number: Step number in the workflow
+            node_name: Name of the current node
+            state: Full workflow state to save
+        
+        Returns:
+            Saved checkpoint record
+        """
+        import json
+        
+        # Serialize state to JSON (handle non-serializable objects)
+        state_json = self._serialize_state(state)
+        
+        result = await self.conn.fetchrow(
+            """
+            INSERT INTO ara_checkpoints (workflow_id, checkpoint_id, step_number, node_name, state_json)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (workflow_id, checkpoint_id) DO UPDATE
+            SET step_number = $3, node_name = $4, state_json = $5, created_at = NOW()
+            RETURNING id, workflow_id, checkpoint_id, step_number, node_name, created_at
+            """,
+            workflow_id,
+            checkpoint_id,
+            step_number,
+            node_name,
+            state_json,
+        )
+        logger.info("checkpoint_saved", workflow_id=workflow_id, step=step_number, node=node_name)
+        return dict(result)
+    
+    async def load_checkpoint(
+        self, workflow_id: str, checkpoint_id: str
+    ) -> Optional[dict]:
+        """
+        Load a specific checkpoint.
+        
+        Args:
+            workflow_id: The workflow UUID
+            checkpoint_id: Checkpoint to load
+        
+        Returns:
+            Deserialized state or None
+        """
+        result = await self.conn.fetchrow(
+            """
+            SELECT state_json FROM ara_checkpoints
+            WHERE workflow_id = $1 AND checkpoint_id = $2
+            """,
+            workflow_id,
+            checkpoint_id,
+        )
+        if result:
+            return self._deserialize_state(result["state_json"])
+        return None
+    
+    async def list_checkpoints(self, workflow_id: str) -> list:
+        """
+        List all checkpoints for a workflow.
+        
+        Returns checkpoints in step order for time-travel navigation.
+        """
+        results = await self.conn.fetch(
+            """
+            SELECT id, checkpoint_id, step_number, node_name, created_at
+            FROM ara_checkpoints
+            WHERE workflow_id = $1
+            ORDER BY step_number ASC
+            """,
+            workflow_id,
+        )
+        return [dict(r) for r in results]
+    
+    async def rewind_to_step(self, workflow_id: str, step_number: int) -> Optional[dict]:
+        """
+        Rewind workflow to a specific step.
+        
+        Returns the state at that step, enabling time-travel debugging.
+        
+        Args:
+            workflow_id: The workflow UUID
+            step_number: Step to rewind to
+        
+        Returns:
+            State at that step or None if not found
+        """
+        result = await self.conn.fetchrow(
+            """
+            SELECT state_json FROM ara_checkpoints
+            WHERE workflow_id = $1 AND step_number = $2
+            """,
+            workflow_id,
+            step_number,
+        )
+        if result:
+            logger.info("checkpoint_rewound", workflow_id=workflow_id, step=step_number)
+            return self._deserialize_state(result["state_json"])
+        return None
+    
+    async def delete_after_step(self, workflow_id: str, step_number: int) -> int:
+        """
+        Delete all checkpoints after a given step.
+        
+        Used when rewinding and then making new edits.
+        
+        Returns:
+            Number of checkpoints deleted
+        """
+        result = await self.conn.execute(
+            """
+            DELETE FROM ara_checkpoints
+            WHERE workflow_id = $1 AND step_number > $2
+            """,
+            workflow_id,
+            step_number,
+        )
+        # Parse "DELETE N" response
+        count = int(result.split()[-1]) if result else 0
+        logger.info("checkpoints_deleted", workflow_id=workflow_id, after_step=step_number, count=count)
+        return count
+    
+    def _serialize_state(self, state: dict) -> str:
+        """Serialize state to JSON string."""
+        import json
+        
+        def default_serializer(obj):
+            # Handle Pydantic models
+            if hasattr(obj, "model_dump"):
+                return obj.model_dump()
+            if hasattr(obj, "dict"):
+                return obj.dict()
+            # Handle enums
+            if hasattr(obj, "value"):
+                return obj.value
+            # Handle datetime
+            if hasattr(obj, "isoformat"):
+                return obj.isoformat()
+            return str(obj)
+        
+        return json.dumps(state, default=default_serializer)
+    
+    def _deserialize_state(self, state_json: str) -> dict:
+        """Deserialize state from JSON string."""
+        import json
+        return json.loads(state_json) if isinstance(state_json, str) else dict(state_json)
+

@@ -16,6 +16,13 @@ from ara.state.schema import AgentState
 from ara.state.models import FileContext, FileStatus, RefactoringTarget
 from ara.tools.file_ops import read_file, list_files
 from ara.llm.provider import get_llm
+from ara.context.dependency_graph import (
+    build_dependency_graph, 
+    build_symbol_table, 
+    get_refactoring_order,
+    DependencyGraph,
+    SymbolResolver,
+)
 
 logger = structlog.get_logger()
 
@@ -49,17 +56,16 @@ def analyzer_node(state: AgentState) -> dict:
     """
     Analyze the codebase to identify refactoring targets.
 
-    This node:
-    1. Lists all Python files in the specified directory
-    2. Reads each file's content
-    3. Uses LLM to identify refactoring targets based on the goal
-    4. Populates the state with file contexts and targets
+    MULTI-FILE SUPPORT:
+    1. Builds dependency graph for all files
+    2. Determines processing order (leaves first)
+    3. Sets up file queue for sequential processing
 
     Args:
         state: Current agent state
 
     Returns:
-        Updated state with files, targets, and dependency graph
+        Updated state with files, targets, dependency graph, and file queue
     """
     logger.info("analyzer_start", goal=state.get("refactoring_goal"))
 
@@ -74,17 +80,39 @@ def analyzer_node(state: AgentState) -> dict:
             "refactoring_targets": [],
         }
 
-    # Collect all file contents for analysis
-    file_contents = []
+    # Get file contents for dependency analysis
+    file_contents = {}
     for filepath, file_ctx in files_dict.items():
         if isinstance(file_ctx, FileContext):
             content = file_ctx.original_content
         else:
             content = file_ctx.get("original_content", "")
-        
-        file_contents.append(f"=== {filepath} ===\n{content}\n")
+        file_contents[filepath] = content
 
-    combined_content = "\n".join(file_contents)
+    # BUILD DEPENDENCY GRAPH
+    dependency_graph = build_dependency_graph(file_contents)
+    logger.info(
+        "dependency_graph_built_in_analyzer",
+        modules=len(dependency_graph.modules),
+        edges=len(dependency_graph.edges),
+    )
+
+    # BUILD SYMBOL TABLE for cross-file resolution
+    symbol_table = build_symbol_table(file_contents)
+    
+    # DETERMINE PROCESSING ORDER
+    all_files = list(files_dict.keys())
+    file_queue = get_refactoring_order(dependency_graph, all_files)
+    logger.info("file_queue_created", order=file_queue)
+
+    # Set the first file to process
+    current_file = file_queue[0] if file_queue else None
+
+    # Collect combined content for LLM analysis
+    combined_content = "\n".join(
+        f"=== {fp} ===\n{content}\n" 
+        for fp, content in file_contents.items()
+    )
 
     # Use LLM to analyze and identify targets
     try:
@@ -107,12 +135,12 @@ For each target, provide the file path, element type, name, line numbers, and wh
         logger.info("analyzer_complete", response_length=len(analysis_text))
 
         # Parse targets from the response
-        # For now, we'll set the first file as current and mark analysis complete
         targets = []
-        first_file = next(iter(files_dict.keys()), None)
 
         return {
-            "current_file_path": first_file,
+            "current_file_path": current_file,
+            "file_queue": file_queue,
+            "file_queue_index": 0,
             "refactoring_targets": targets,
             "human_feedback": f"Analysis complete: {analysis_text[:500]}...",
         }
@@ -121,13 +149,14 @@ For each target, provide the file path, element type, name, line numbers, and wh
         logger.error("analyzer_error", error=str(e))
         
         # FALLBACK: Even on error, set current_file_path so generator can work
-        first_file = next(iter(files_dict.keys()), None)
-        logger.warning("analyzer_using_fallback", first_file=first_file, reason=str(e))
+        logger.warning("analyzer_using_fallback", first_file=current_file, reason=str(e))
         
         return {
-            "current_file_path": first_file,  # Critical: set this even on error
+            "current_file_path": current_file,
+            "file_queue": file_queue,
+            "file_queue_index": 0,
             "refactoring_targets": [],
-            "human_feedback": f"Analysis fallback (LLM unavailable): Processing {first_file}",
+            "human_feedback": f"Analysis fallback (LLM unavailable): Processing {current_file}",
         }
 
 

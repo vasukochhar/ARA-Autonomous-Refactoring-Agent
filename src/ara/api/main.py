@@ -372,6 +372,69 @@ async def cancel_workflow(workflow_id: str):
 
 
 # ============================================================================
+# Time-Travel Debugging Endpoints
+# ============================================================================
+
+class CheckpointResponse(BaseModel):
+    """Checkpoint information."""
+    checkpoint_id: str
+    step_number: int
+    node_name: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class RewindRequest(BaseModel):
+    """Request to rewind to a specific step."""
+    step_number: int = Field(..., description="Step number to rewind to", ge=0)
+
+
+@app.get("/workflows/{workflow_id}/checkpoints", response_model=List[CheckpointResponse])
+async def list_checkpoints(workflow_id: str):
+    """
+    List all checkpoints for a workflow.
+    
+    Enables time-travel debugging by showing the workflow's execution history.
+    """
+    manager = get_workflow_manager()
+    checkpoints = await manager.list_checkpoints(workflow_id)
+    
+    return [
+        CheckpointResponse(
+            checkpoint_id=cp.get("checkpoint_id", ""),
+            step_number=cp.get("step_number", 0),
+            node_name=cp.get("node_name"),
+            created_at=str(cp.get("created_at")) if cp.get("created_at") else None,
+        )
+        for cp in checkpoints
+    ]
+
+
+@app.post("/workflows/{workflow_id}/rewind")
+async def rewind_workflow(workflow_id: str, request: RewindRequest):
+    """
+    Rewind a workflow to a specific checkpoint (time-travel debugging).
+    
+    This restores the workflow state to a previous step, allowing
+    engineers to inspect, modify, or re-run from that point.
+    """
+    manager = get_workflow_manager()
+    
+    state = await manager.rewind_to_checkpoint(workflow_id, request.step_number)
+    
+    if state is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Checkpoint not found at step {request.step_number}",
+        )
+    
+    return {
+        "message": f"Workflow rewound to step {request.step_number}",
+        "workflow_id": workflow_id,
+        "step_number": request.step_number,
+    }
+
+
+# ============================================================================
 # Startup/Shutdown Events
 # ============================================================================
 

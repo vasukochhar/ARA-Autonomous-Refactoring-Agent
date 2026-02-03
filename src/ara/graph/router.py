@@ -112,3 +112,94 @@ def check_for_errors(state: AgentState) -> str:
         return "error"
 
     return "continue"
+
+
+def route_next_file(state: AgentState) -> dict:
+    """
+    Advance to the next file in the processing queue.
+
+    Called after a file is successfully processed. Updates current_file_path
+    to the next file in the queue.
+
+    Args:
+        state: Current agent state
+
+    Returns:
+        State update with next file, or None if queue exhausted
+    """
+    file_queue = state.get("file_queue", [])
+    current_index = state.get("file_queue_index", 0)
+    
+    next_index = current_index + 1
+    
+    if next_index < len(file_queue):
+        next_file = file_queue[next_index]
+        logger.info("advancing_to_next_file", 
+                    index=next_index, 
+                    total=len(file_queue), 
+                    file=next_file)
+        return {
+            "current_file_path": next_file,
+            "file_queue_index": next_index,
+            "iteration_count": 0,  # Reset iterations for new file
+        }
+    
+    logger.info("file_queue_exhausted", total_processed=len(file_queue))
+    return {
+        "file_queue_index": next_index,
+    }
+
+
+def has_more_files(state: AgentState) -> str:
+    """
+    Check if there are more files to process in the queue.
+
+    Args:
+        state: Current agent state
+
+    Returns:
+        "next_file" if more files, "done" if queue exhausted
+    """
+    file_queue = state.get("file_queue", [])
+    current_index = state.get("file_queue_index", 0)
+    
+    if current_index + 1 < len(file_queue):
+        logger.info("more_files_in_queue", 
+                    remaining=len(file_queue) - current_index - 1)
+        return "next_file"
+    
+    logger.info("all_files_complete", total=len(file_queue))
+    return "done"
+
+
+def check_cycle_detection(state: AgentState) -> str:
+    """
+    Check for code oscillation (cycle detection).
+
+    If the same code hash appears twice, we're oscillating and should stop.
+
+    Args:
+        state: Current agent state
+
+    Returns:
+        "cycle" if oscillation detected, "continue" otherwise
+    """
+    import hashlib
+    
+    code_hashes = state.get("code_hashes", [])
+    generated_code = state.get("generated_code_snippet", "")
+    
+    if not generated_code:
+        return "continue"
+    
+    # Compute hash of generated code
+    code_hash = hashlib.md5(generated_code.encode()).hexdigest()
+    
+    if code_hash in code_hashes:
+        logger.warning("code_oscillation_detected", 
+                       hash=code_hash,
+                       history_size=len(code_hashes))
+        return "cycle"
+    
+    return "continue"
+
